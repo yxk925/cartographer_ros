@@ -380,6 +380,12 @@ std::unique_ptr<nav_msgs::OccupancyGrid> CreateOccupancyGridMsg(
   const int height =
       cairo_image_surface_get_height(painted_slices.surface.get());
 
+  const int8_t occ_grid_unknown = -1;
+  const int8_t occ_grid_free = 0;
+  const int8_t occ_grid_occupied = 100;
+  const double occupied_thresh = 0.65;
+  const double free_thresh = 0.196;
+
   occupancy_grid->header.stamp = time;
   occupancy_grid->header.frame_id = frame_id;
   occupancy_grid->info.map_load_time = time;
@@ -404,10 +410,19 @@ std::unique_ptr<nav_msgs::OccupancyGrid> CreateOccupancyGridMsg(
       const uint32_t packed = pixel_data[y * width + x];
       const unsigned char color = packed >> 16;
       const unsigned char observed = packed >> 8;
-      const int value =
+      int value =
           observed == 0
               ? -1
               : ::cartographer::common::RoundToInt((1. - color / 255.) * 100.);
+
+      if (occupied_thresh * 100. < value) {
+        value = occ_grid_occupied;
+      } else if (free_thresh * 100. < value) {
+        value = occ_grid_unknown;
+      } else if (-1 < value) {
+        value = occ_grid_free;
+      }
+      
       CHECK_LE(-1, value);
       CHECK_GE(100, value);
       occupancy_grid->data.push_back(value);
